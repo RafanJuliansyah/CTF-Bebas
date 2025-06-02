@@ -1,5 +1,6 @@
 # Menyelesaikan soal ctf dari sekolah 
-### target: ### `10.1.10.66`
+### target: menemukan sebuah file.txt
+target mesinya `10.1.10.66`
 ---
 ## 1. Scan dengan nmap 
 ```
